@@ -1,47 +1,42 @@
 FROM ubuntu:trusty
-MAINTAINER Peter John <peter@playlyfe.com>
+MAINTAINER Kohei MATSUSHITA <ma2shita+git@ma2shita.jp>
 
-# Install packages
+ENV APP_ROOT /opt/moodle
 ENV DEBIAN_FRONTEND noninteractive
-RUN apt-get update && \
-apt-get -y install curl supervisor apache2 libapache2-mod-php5 mysql-server php5-mysql pwgen php-apc php5-mcrypt php5-gd php5-curl php5-xmlrpc php5-intl
-
-# Add image configuration and scripts
-ADD start-apache2.sh /start-apache2.sh
-ADD start-mysqld.sh /start-mysqld.sh
-ADD run.sh /run.sh
-RUN chmod 755 /*.sh
-ADD my.cnf /etc/mysql/conf.d/my.cnf
-ADD supervisord-apache2.conf /etc/supervisor/conf.d/supervisord-apache2.conf
-ADD supervisord-mysqld.conf /etc/supervisor/conf.d/supervisord-mysqld.conf
-
-# Remove pre-installed database
-RUN rm -rf /var/lib/mysql/*
-
-# Add MySQL utils
-ADD create_mysql_admin_user.sh /create_mysql_admin_user.sh
-RUN chmod 755 /*.sh
-
-# config to enable .htaccess
-ADD apache_default /etc/apache2/sites-available/000-default.conf
-ADD ports_default /etc/apache2/ports.conf
-RUN a2enmod rewrite
-
-#Enviornment variables to configure php
-ENV PHP_UPLOAD_MAX_FILESIZE 10M
-ENV PHP_POST_MAX_SIZE 10M
-
-# Add volumes for MySQL
-VOLUME ["/etc/mysql", "/var/lib/mysql" ]
-
-# Configure locales
-RUN locale-gen en_US en_US.UTF-8
-RUN dpkg-reconfigure locales
 
 RUN adduser --disabled-password --gecos moodle moodleuser
 
-RUN mkdir /var/www/moodledata
-RUN chmod 777 /var/www/moodledata
+RUN cp /usr/share/zoneinfo/Asia/Tokyo /etc/localtime && \
+    echo 'Asia/Tokyo' > /etc/timezone && \
+    echo 'LC_ALL=ja_JP.UTF-8' > /etc/default/locale && \
+    echo 'LANG=ja_JP.UTF-8' >> /etc/default/locale && \
+    locale-gen ja_JP.UTF-8
+RUN sed -e 's;http://archive;http://jp.archive;' -e  's;http://us\.archive;http://jp.archive;' -i /etc/apt/sources.list
 
-EXPOSE 3000 3306
+RUN apt-get update && \
+apt-get -y install apache2 libapache2-mod-php5 php5-cli php5-gd php5-mysqlnd php5-curl php5-xmlrpc php5-intl php5-apcu php5-mcrypt postfix wget curl supervisor mysql-server mysql-client pwgen git unzip vim
+RUN apt-get clean && rm -rf /var/cache/apt/archives/*
+RUN rm -rf /var/lib/mysql/*
+
+RUN mkdir $APP_ROOT && \
+    git clone -b MOODLE_29_STABLE --depth 1 git://git.moodle.org/moodle.git $APP_ROOT/app
+RUN chown -R root:root $APP_ROOT/app && \
+    chmod 0755 $APP_ROOT/app
+
+COPY *.sh /
+RUN chmod 755 /*.sh
+COPY my.cnf /etc/mysql/conf.d/
+COPY supervisord-*.conf /etc/supervisor/conf.d/
+
+ADD ports_default /etc/apache2/ports.conf
+ADD apache_default /etc/apache2/sites-available/000-default.conf
+RUN rm -f /var/log/apache2/*log && \
+    ln -s /dev/stdout /var/log/apache2/access.log && \
+    ln -s /dev/stderr /var/log/apache2/error.log
+RUN a2enmod rewrite
+
+ENV PHP_UPLOAD_MAX_FILESIZE 10M
+ENV PHP_POST_MAX_SIZE 10M
+EXPOSE 80
+VOLUME ["/var/lib/mysql", "$APP_ROOT/moodledata"]
 CMD ["/run.sh"]

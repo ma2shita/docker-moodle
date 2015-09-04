@@ -11,9 +11,9 @@ while [[ RET -ne 0 ]]; do
 done
 
 mysql -uroot -e "CREATE DATABASE moodle DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;"
-mysql -uroot -e "GRANT ALL ON moodle.* TO moodleuser@localhost IDENTIFIED BY 'moodle';"
+mysql -uroot -e "GRANT ALL ON moodle.* TO moodle@localhost IDENTIFIED BY 'moodle';"
 
 echo "MySQL user 'root' has no password but only allows local connections"
-echo "MySQL user: moodleuser pass: moodle host: localhost port: 3306"
+echo "MySQL user: moodle pass: moodle host: localhost port: 3306"
 
 mysqladmin -uroot shutdown
